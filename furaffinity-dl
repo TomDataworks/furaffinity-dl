@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+PRESET_LOGIN="TomWest"
+PRESET_PASSWORD=""
+IMAGE_VIEWER="fim"
+
 if [ "$1" = "" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     echo "Usage: $0 SECTION/USER [YOUR_USERNAME]
 Downloads the entire gallery/scraps/favorites of any furaffinity.net user.
@@ -30,13 +34,21 @@ trap cleanup EXIT
 
 LOGIN_NAME="$2"
 if [ "$LOGIN_NAME" = "" ]; then
+    LOGIN_NAME="$PRESET_LOGIN"
+fi
+
+if [ "$LOGIN_NAME" = "" ]; then
     # set a wget wrapper with custom user agent
     fwget() {
         wget --user-agent="Mozilla/5.0 furaffinity-dl (https://github.com/Shnatsel/furaffinity-dl)" $*
     }
 else
     # prompt the user for their password
-    read -r -s -e -p "Password for $LOGIN_NAME (will not be displayed): " PASSWORD
+    if [ "$PRESET_PASSWORD" != "" ]; then
+        PASSWORD="$PRESET_PASSWORD"
+    else
+        read -r -s -e -p "Password for $LOGIN_NAME (will not be displayed): " PASSWORD
+    fi
 
     # log in to FurAffinity
     wget --user-agent="Mozilla/5.0 furaffinity-dl (https://github.com/Shnatsel/furaffinity-dl)" \
@@ -60,8 +72,20 @@ base_url=https://www.furaffinity.net/"$1"
 url="$base_url"
 page_counter=1
 
+# Here's a quick option to view a furaffinity link outside of a web browser, even with login required.
+# You will have to have permission to view the image, rating settings, etc.
+if [[ "$0" == *"furaffinity-view" ]]; then
+    echo "Downloading single image..."
+    fwget -O "$tempfile" "$1"
+    image_url='http:'$(grep -E --max-count=1 --only-matching '"[^"]+">Download[[:space:]]?</a>' "$tempfile" | cut -d '"' -f 2)
+    wget "$image_url"
+    exec $IMAGE_VIEWER `basename $image_url`
+    exit
+fi
+
 # Iterate over the gallery pages with thumbnails and links to artwork view pages
 while true; do
+
     fwget -O "$tempfile" "$url"
     grep -q -i "there are no submissions to list" "$tempfile" && break
 
